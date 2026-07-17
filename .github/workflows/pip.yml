@@ -38,6 +38,8 @@ jobs:
       - name: Build and install
         # Path-install all members (+ meta) in one invocation so pip can
         # satisfy inter-package deps without PyPI / uv workspace sources.
+        env:
+          CFLAGS: ${{ runner.os == 'macOS' && '-fno-define-target-os-macros' || '' }}
         run: |
           python -m pip install --verbose \
             ./packages/res_mapf_planning \

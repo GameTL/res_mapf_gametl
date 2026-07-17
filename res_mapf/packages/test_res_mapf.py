@@ -2,9 +2,8 @@
 cd res_mapf
 uv run pytest packages/test_res_mapf.py -v -s   # verbose names + show prints
 """
-import importlib 
-import pytest 
-from rich.pretty import pprint
+import importlib
+import pytest
 
 # ========================================== 1. Import ===========================================
 
@@ -27,4 +26,4 @@ from res_plan_server.task_status import TaskStatus
 
 def test_task_status_planning_exist() -> None:
     assert TaskStatus.PLANNING is TaskStatus["PLANNING"]
-    assert TaskStatus.PLANNING.value == 1 
+    assert TaskStatus.PLANNING.value == 1
