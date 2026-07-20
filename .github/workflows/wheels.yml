@@ -84,3 +84,49 @@ jobs:
       - name: Import smoke
         run: |
           python -c "import res_mapf_planning, res_plan_execution, res_plan_server, res_pybullet, res_mapf"
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, smoke]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: res-mapf-dist
+          path: dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          assets=(dist/*.whl dist/*.tar.gz)
+          if (( ${#assets[@]} == 0 )); then
+            echo "No wheel or sdist artifacts found in dist/" >&2
+            exit 1
+          fi
+          notes_file="$(mktemp)"
+          if [[ -f CHANGELOG.md ]]; then
+            # Extract the section matching the tag version (v0.1.0 -> 0.1.0).
+            version="${GITHUB_REF_NAME#v}"
+            awk -v ver="$version" '
+              $0 ~ "^##[[:space:]]+" ver "([[:space:]]|$)" {found=1; print; next}
+              found && /^##[[:space:]]+/ {exit}
+              found {print}
+            ' CHANGELOG.md > "$notes_file"
+          fi
+          if [[ ! -s "$notes_file" ]]; then
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file "$notes_file"
+          fi
