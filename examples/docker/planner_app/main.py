@@ -65,7 +65,9 @@ class PlannerService:
         start = str(message.get("start", ""))
         goal = str(message.get("goal", ""))
         if not robot_id or not start or not goal:
-            LOGGER.warning("Ignoring TaskRequest missing robot_id/start/goal: %s", message)
+            LOGGER.warning(
+                "Ignoring TaskRequest missing robot_id/start/goal: %s", message
+            )
             return
 
         self.context.initialise_agent(robot_id, start)
@@ -114,7 +116,9 @@ class PlannerService:
             pprint(plan)
 
 
-def on_message(service: PlannerService, _channel, _method, _properties, body: bytes) -> None:
+def on_message(
+    service: PlannerService, _channel, _method, _properties, body: bytes
+) -> None:
     try:
         message = json.loads(body)
     except json.JSONDecodeError:

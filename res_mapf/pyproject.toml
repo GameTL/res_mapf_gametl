@@ -36,6 +36,7 @@ res_pybullet = { workspace = true }
 python_version = "3.10"
 namespace_packages = true
 incremental = false
+mypy_path = ["examples"]
 warn_redundant_casts = true
 warn_return_any = true
 warn_unused_configs = true

@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 ROS-Industrial Consortium Asia Pacific
+# Advanced Remanufacturing and Technology Centre
+# A*STAR Research Entities (Co. Registration No. 199702110H)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Render a node graph and optional robot schedule in a terminal.
 
 The input may be JSON or YAML and may come from a file or stdin::
@@ -145,8 +161,7 @@ def render_graph(
     graph_nodes = {_position(node) for node in nodes}
     graph_edges = [_edge(edge) for edge in edges]
     robot_positions = {
-        str(robot): _position(position)
-        for robot, position in (robots or {}).items()
+        str(robot): _position(position) for robot, position in (robots or {}).items()
     }
     graph_nodes.update(endpoint for edge in graph_edges for endpoint in edge)
     graph_nodes.update(robot_positions.values())
@@ -176,8 +191,7 @@ def render_graph(
 
     waiting_robots = set(waiting)
     symbols = {
-        robot: ascii_uppercase[index]
-        for index, robot in enumerate(robot_positions)
+        robot: ascii_uppercase[index] for index, robot in enumerate(robot_positions)
     }
     colors = {
         robot: _ROBOT_COLORS[index % len(_ROBOT_COLORS)]
@@ -199,8 +213,7 @@ def render_graph(
     if not symbols:
         return drawing
     legend_parts = [
-        _color(f"{symbol}={robot}", colors[robot])
-        for robot, symbol in symbols.items()
+        _color(f"{symbol}={robot}", colors[robot]) for robot, symbol in symbols.items()
     ]
     legend = "  ".join(legend_parts)
     return f"{drawing}\n{legend}  {_color('·', _DIM)}=node"
@@ -250,14 +263,13 @@ def render_timeline(
 
     start = {robot: path[0][1] for robot, path in paths.items()}
     goal = {robot: path[-1][1] for robot, path in paths.items()}
-    start_drawing, start_legend = render_graph(
-        graph_nodes, graph_edges, start
-    ).rsplit("\n", 1)
-    goal_drawing, _ = render_graph(graph_nodes, graph_edges, goal).rsplit("\n", 1)
-    summary = (
-        f"{_side_by_side(f'start\n{start_drawing}', f'goal\n{goal_drawing}')}"
-        f"\n{start_legend}"
+    start_drawing, start_legend = render_graph(graph_nodes, graph_edges, start).rsplit(
+        "\n", 1
     )
+    goal_drawing, _ = render_graph(graph_nodes, graph_edges, goal).rsplit("\n", 1)
+    start_panel = f"start\n{start_drawing}"
+    goal_panel = f"goal\n{goal_drawing}"
+    summary = f"{_side_by_side(start_panel, goal_panel)}\n{start_legend}"
 
     frames: list[str] = []
     previous: dict[str, Position] = {}
@@ -293,7 +305,9 @@ def _load_input(path: str) -> Mapping[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("input", nargs="?", default="-", help="JSON/YAML file, or - for stdin")
+    parser.add_argument(
+        "input", nargs="?", default="-", help="JSON/YAML file, or - for stdin"
+    )
     args = parser.parse_args()
     data = _load_input(args.input)
     nodes = data.get("nodes", ())
