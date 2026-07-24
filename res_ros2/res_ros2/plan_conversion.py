@@ -24,8 +24,11 @@ from res_mapf_planning.traffic_dependencies.models.traffic_dependency import (
     TrafficDependency,
 )
 from res_mapf_planning.traffic_dependencies.models.waypoint import Waypoint
+from rmf_prototype_msgs.msg import DestinationConstraints as RosDestinationConstraints
+from rmf_prototype_msgs.msg import GraphElementKey as RosGraphElementKey
 from rmf_prototype_msgs.msg import Plan as RosPlan
 from rmf_prototype_msgs.msg import PlanId as RosPlanId
+from rmf_prototype_msgs.msg import TargetNode as RosTargetNode
 from rmf_prototype_msgs.msg import TrafficDependency as RosTrafficDependency
 from rmf_prototype_msgs.msg import Waypoint as RosWaypoint
 from unique_identifier_msgs.msg import UUID as RosUUID
@@ -73,10 +76,21 @@ class PlanConversion:
         )
 
     @staticmethod
-    def to_ros_waypoint(wp: Waypoint) -> RosWaypoint:
+    def to_ros_waypoint(wp: Waypoint, map_name: str = "") -> RosWaypoint:
+        node_key = RosGraphElementKey(
+            graph_name=map_name,
+            key=[int(wp.position[0]), int(wp.position[1])],
+            name=[wp.name] if wp.name else [],
+            element_type=RosGraphElementKey.ELEMENT_TYPE_NODE,
+        )
+        arrival_constraints = RosDestinationConstraints(
+            nodes=[RosTargetNode(key=node_key)]
+        )
         return RosWaypoint(
             position=list(wp.position),
+            arrival_constraints=arrival_constraints,
             progress=wp.progress,
+            maps=[map_name] if map_name else [],
             departure_action=wp.departure_action,
             departure_blockers=[
                 PlanConversion.to_ros_dependency(d) for d in wp.departure_blockers
@@ -86,7 +100,7 @@ class PlanConversion:
     @staticmethod
     def from_ros_waypoint(msg: RosWaypoint) -> Waypoint:
         return Waypoint(
-            name=f"{msg.position[0]},{msg.position[1]}",
+            name=PlanConversion._name_from_constraints(msg.arrival_constraints),
             position=tuple(msg.position),
             progress=msg.progress,
             departure_action=msg.departure_action,
@@ -96,19 +110,40 @@ class PlanConversion:
         )
 
     @staticmethod
-    def to_ros_plan(plan: Plan, to_ros_time) -> RosPlan:
+    def _name_from_constraints(constraints: RosDestinationConstraints) -> str:
+        """Recover the node name from the first target node in a Waypoint's arrival constraints.
+
+        Returns "" if GraphElementKey's name is not set or there are no target nodes.
+        """
+        if not constraints.nodes:
+            return ""
+        key = constraints.nodes[0].key
+        if key.name:
+            return key.name[0]
+        return ""
+
+    @staticmethod
+    def to_ros_plan(internal_plan: Plan) -> RosPlan:
+        ros_waypoints = []
+        for w in internal_plan.waypoints:
+            ros_waypoints.append(
+                PlanConversion.to_ros_waypoint(w, internal_plan.map_name)
+            )
+
+        ros_plan_id = PlanConversion.to_ros_plan_id(internal_plan.plan_id)
+
         return RosPlan(
-            plan_id=PlanConversion.to_ros_plan_id(plan.plan_id),
-            start_time=to_ros_time(plan.start_time),
-            workflow=plan.workflow,
-            waypoints=[PlanConversion.to_ros_waypoint(w) for w in plan.waypoints],
+            plan_id=ros_plan_id,
+            start_time=PlanConversion.to_ros_time(internal_plan.start_time),
+            workflow=internal_plan.workflow,
+            waypoints=ros_waypoints,
         )
 
     @staticmethod
     def from_ros_plan(msg: RosPlan) -> Plan:
         return Plan(
             plan_id=PlanConversion.from_ros_plan_id(msg.plan_id),
-            start_time=(msg.start_time),
+            start_time=PlanConversion.from_ros_time(msg.start_time),
             workflow=msg.workflow,
             waypoints=[PlanConversion.from_ros_waypoint(w) for w in msg.waypoints],
         )
