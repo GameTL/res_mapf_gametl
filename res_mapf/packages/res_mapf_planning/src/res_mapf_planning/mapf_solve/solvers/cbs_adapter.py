@@ -14,11 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Sequence, Tuple, TypedDict
+from typing import Dict, List, Sequence, Tuple, TypedDict, cast
 
 
+from res_map.grid.grid_utils import GridMap
 from res_mapf_planning.cbs.cbs import CBS, AgentContext, CBSPlan, Environment
-from res_mapf_planning.mapf_solve.exceptions import NoSolutionError
+from res_mapf_planning.mapf_solve.exceptions import (
+    InvalidMapError,
+    NoSolutionFound,
+    UnknownWaypointError,
+)
 from res_mapf_planning.mapf_solve.mapf_solver_base import (
     Location,
     MAPFAgent,
@@ -34,66 +39,82 @@ class _CBSOutput(TypedDict):
 
 
 class CBSAdapter(MAPFSolverBase):
-    """Limited adapter to the cbs solver for local testing.
-    Missing specification of map dimensions
+    """Adapter to the cbs solver for local testing.
 
-    start or end should be a Location with Name with a value of a string "x, y"
+    Named locations (e.g. "P01") are resolved to grid coordinates via the
+    grid map data.
     """
+
+    def __init__(self, grid_map: GridMap) -> None:
+        self._validate_map(grid_map)
+        self._grid_map: GridMap = grid_map
+
+    def _validate_map(self, grid_map: GridMap) -> None:
+        if not grid_map.grid_nodes:
+            raise InvalidMapError("Grid map contains no nodes.")
 
     def solve(
         self,
-        items: Sequence[MAPFAgent],
-        input_obstacles: Sequence[Obstacle] = [],
-    ) -> Sequence[SolverPlan]:
+        agents: List[MAPFAgent],
+        obstacles: List[Obstacle],
+    ) -> List[SolverPlan]:
+        self._validate_waypoints(agents, obstacles)
+
         task_ids = {}  # Track task IDs
+        cbs_agents: List[AgentContext] = []
 
-        dimension = [7, 7]
-        agents: List[AgentContext] = []
-
-        for item in items:
-            agent: AgentContext = {
-                "start": self._to_cbs_format(item.start),
-                "goal": self._to_cbs_format(item.goal),
-                "name": item.agent_id,
+        for agent in agents:
+            cbs_agent: AgentContext = {
+                "start": list(self._to_cbs_coords(agent.start)),
+                "goal": list(self._to_cbs_coords(agent.goal)),
+                "name": agent.agent_id,
             }
-            agents.append(agent)
+            cbs_agents.append(cbs_agent)
+            task_ids[agent.agent_id] = agent.task_id if agent.task_id else ""
 
-            task_ids[item.agent_id] = item.task_id if item.task_id else ""
+        map_obstacles: List[Tuple[int, int]] = list(self._grid_map.obstacles)  # copy
+        for obs in obstacles:
+            map_obstacles.append(self._to_cbs_coords(obs.location))
 
-        obstacles: List[Tuple[int, int]] = []
-        print("Agents:", agents)
-        print("Number of obstacles:", len(input_obstacles), flush=True)
-        for input_obstacle in input_obstacles:
-            print("obstacle:", input_obstacle, flush=True)
-
-            if input_obstacle.location.is_named():
-                coords = [
-                    int(float(x)) for x in input_obstacle.location.name.split(",")
-                ]
-                xy_tuple = (coords[0], coords[1])
-            else:
-                xy_tuple = (
-                    int(input_obstacle.location.x),
-                    int(input_obstacle.location.y),
-                )
-            obstacles.append(xy_tuple)
-        print("Solving with CBS..", flush=True)
-        output = self._solve_cbs(dimension, agents, obstacles)
-        plans = _convert_cbs(output, task_ids)
-        print("Solved.", flush=True)
+        output = self._solve_cbs(self._grid_map.dimension, cbs_agents, map_obstacles)
+        plans = self._convert_cbs(output, task_ids)
 
         return plans
 
-    def _to_cbs_format(self, location: Location) -> Sequence[int]:
+    def _validate_waypoints(
+        self,
+        agents: List[MAPFAgent],
+        obstacles: List[Obstacle],
+    ) -> None:
+        """Raise if any agent/obstacle references a location not in the map."""
+
+        for agent in agents:
+            self._validate_single_location(agent.start, agent.agent_id)
+            self._validate_single_location(agent.goal, agent.agent_id)
+
+        for obstacle in obstacles:
+            self._validate_single_location(obstacle.location, agent_id=None)
+
+    def _validate_single_location(
+        self, location: Location, agent_id: str | None
+    ) -> None:
+        if not location.is_named():
+            raise UnknownWaypointError(
+                f"CBSAdapter currently only supports named locations, got {location!r}."
+            )
+
+        if location.name not in self._grid_map.grid_nodes:
+            raise UnknownWaypointError(location.name, agent_id=agent_id)
+
+    def _to_cbs_coords(self, location: Location) -> Tuple[int, int]:
+        """Resolve a Location to an (x, y) integer grid coordinate tuple."""
+        if location.is_named():
+            if location.name in self._grid_map.grid_nodes:
+                return cast(Tuple[int, int], self._grid_map.grid_nodes[location.name])
+            raise ValueError(f"Named location '{location.name}' not found in map.")
         if location.is_coordinates():
-            return [int(location.x), int(location.y)]
-        elif location.is_named():
-            # assume name is (x, y)
-            return [
-                int(float(i)) if "." in i else int(i) for i in location.name.split(",")
-            ]
-        else:
-            raise ValueError(f"Invalid Location: {location}")
+            return (int(location.x), int(location.y))
+        raise ValueError(f"Invalid Location: {location}")
 
     def _solve_cbs(
         self,
@@ -102,14 +123,11 @@ class CBSAdapter(MAPFSolverBase):
         obstacles: Sequence[Tuple[int, int]],
     ) -> _CBSOutput:
         env = Environment(dimension, agents, obstacles)
-
-        # Searching
         cbs = CBS(env)
         solution = cbs.search()
         if not solution:
-            raise NoSolutionError("CBS could not find a valid solution")
+            raise NoSolutionFound("CBS could not find a valid solution")
 
-        # Write to output file
         output: _CBSOutput = {
             "schedule": solution,
             "cost": env.compute_solution_cost(solution),
@@ -119,46 +137,58 @@ class CBSAdapter(MAPFSolverBase):
 
         return output
 
+    def _convert_cbs(
+        self, cbs_output: _CBSOutput, task_ids: Dict[str, str]
+    ) -> List[SolverPlan]:
+        """
+        Convert output from cbs.py.
 
-def _convert_cbs(
-    cbs_output: _CBSOutput, task_ids: Dict[str, str]
-) -> Sequence[SolverPlan]:
-    """
-    Convert output from cbs.py.
+        Args:
+            cbs_output (dict): Object loaded from cbs.py's output.yaml
+        """
 
-    Args:
-        cbs_output (dict): Object loaded from cbs.py's output.yaml
-    """
-    plans = []
-    for agent_name, agent_path in cbs_output["schedule"].items():
-        steps = []
+        coord_to_node: Dict[Tuple[int, int], str] = {
+            v: k for k, v in self._grid_map.grid_nodes.items()
+        }
 
-        # Create steps.
+        plans = []
+        for agent_name, agent_path in cbs_output["schedule"].items():
+            steps = []
 
-        for idx in range(len(agent_path) - 1):  # Exclude final waypoint from the loop.
-            waypoint = agent_path[idx]
-            next_waypoint = agent_path[idx + 1]
+            # Create steps.
 
-            timestep = waypoint["t"]
-            step_from = SolverLocation(
-                node=str(waypoint["x"]) + "," + str(waypoint["y"]),
-                x=waypoint["x"],
-                y=waypoint["y"],
-            )
-            step_to = SolverLocation(
-                node=str(next_waypoint["x"]) + "," + str(next_waypoint["y"]),
-                x=next_waypoint["x"],
-                y=next_waypoint["y"],
-            )
+            for idx in range(
+                len(agent_path) - 1
+            ):  # Exclude final waypoint from the loop.
+                waypoint = agent_path[idx]
+                next_waypoint = agent_path[idx + 1]
 
-            steps.append(
-                Step(
-                    timestep=timestep,
-                    step_from=step_from,
-                    step_to=step_to,
-                    task_id=task_ids[agent_name],
+                timestep = waypoint["t"]
+                step_from = SolverLocation(
+                    node=coord_to_node[(waypoint["x"], waypoint["y"])],
+                    x=waypoint["x"],
+                    y=waypoint["y"],
+                )
+                step_to = SolverLocation(
+                    node=coord_to_node[(next_waypoint["x"], next_waypoint["y"])],
+                    x=next_waypoint["x"],
+                    y=next_waypoint["y"],
+                )
+
+                steps.append(
+                    Step(
+                        timestep=timestep,
+                        step_from=step_from,
+                        step_to=step_to,
+                        task_id=task_ids[agent_name],
+                    )
+                )
+            plans.append(
+                SolverPlan(
+                    agent_name=agent_name,
+                    steps=steps,
+                    map_name=self._grid_map.map_name,
                 )
             )
-        plans.append(SolverPlan(agent_name=agent_name, steps=steps))
 
-    return plans
+        return plans

@@ -94,7 +94,7 @@ with its dependency, [`next_gen_prototype`](https://github.com/open-rmf/next_gen
 mkdir -p ~/res_ws/src
 cd ~/res_ws
 git clone https://github.com/ros-industrial/res_mapf.git src/res_mapf
-git clone https://github.com/open-rmf/next_gen_prototype.git src/next_gen_prototype
+git clone https://github.com/chianfern/next_gen_prototype.git src/next_gen_prototype
 ```
 
 **4. Install system dependencies.** Use rosdep to install any remaining dependencies
@@ -175,13 +175,14 @@ source install/activate.sh
 **1. Run the PyBullet simulation.** Start it with the agents' start coordinates:
 
 ```bash
-res_pybullet_sim --coords "0,0 2,0"
+res_pybullet_sim --named P_0_0 P_2_0 --map src/res_mapf/res_mapf/examples/basic_grid/basic_grid.lif.json
 ```
 
-**2. Run the demonstration script.** In the *project environment*, run the integration demo:
+**2. Run the example script.** In the *project environment*, run the example:
 
 ```bash
-python3 src/res_mapf/res_ros2/res_ros2/test/integration.py
+cd src/res_mapf/res_mapf/examples/basic_grid
+python3 example.py basic_grid.lif.json
 ```
 
 ### Demonstration with ROS 2 nodes
@@ -189,30 +190,30 @@ python3 src/res_mapf/res_ros2/res_ros2/test/integration.py
 **1. Run the PyBullet simulation.**
 
 ```bash
-res_pybullet_sim --coords "0,0 2,0"
+res_pybullet_sim --named P_0_0 P_2_0 --map src/res_mapf/res_mapf/examples/basic_grid/basic_grid.lif.json
 ```
 
 **2. Run the ROS 2 plan server.** In a *project environment*, launch the plan server node:
 
 ```bash
-ros2 run res_ros2 plan_server_node
+ros2 run res_ros2 plan_server_node --ros-args -p lif_path:=src/res_mapf/res_mapf/examples/basic_grid/basic_grid.lif.json
 ```
 
 **3. Run the ROS 2 plan executor.** In another *project environment*, launch the plan executor
 node:
 
 ```bash
-ros2 run res_ros2 plan_executor_node
+ros2 run res_ros2 plan_executor_node --ros-args -p lif_path:=src/res_mapf/res_mapf/examples/basic_grid/basic_grid.lif.json
 ```
 
 **4. Onboard the robots**
 
 ```bash
 ros2 topic pub -1 /robot_onboard res_ros2_msgs/RobotOnboard "robot_id: 'agent_0'
-start_location: '0,0'"
+start_location: 'P_0_0'"
 
 ros2 topic pub -1 /robot_onboard res_ros2_msgs/RobotOnboard "robot_id: 'agent_1'
-start_location: '2,0'"
+start_location: 'P_2_0'"
 ```
 
 **5. Send the initial tasks together**
@@ -220,11 +221,11 @@ start_location: '2,0'"
 ```bash
 ros2 topic pub -1 /agent_0/task_request res_ros2_msgs/TaskRequest "task_id: 'agent_0_task'
 robot_id: 'agent_0'
-goal: '2,0'" &
+goal: 'P_2_0'" &
 
 ros2 topic pub -1 /agent_1/task_request res_ros2_msgs/TaskRequest "task_id: 'agent_1_task'
 robot_id: 'agent_1'
-goal: '0,0'"
+goal: 'P_0_0'"
 ```
 
 **6. Replace the tasks with new ones to trigger replanning**
@@ -232,11 +233,11 @@ goal: '0,0'"
 ```bash
 ros2 topic pub -1 /agent_0/task_request res_ros2_msgs/TaskRequest "task_id: 'agent_0_task'
 robot_id: 'agent_0'
-goal: '1,2'" &
+goal: 'P_1_2'" &
 
 ros2 topic pub -1 /agent_1/task_request res_ros2_msgs/TaskRequest "task_id: 'agent_1_task'
 robot_id: 'agent_1'
-goal: '0,3'"
+goal: 'P_0_3'"
 ```
 
 ---

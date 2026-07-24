@@ -14,18 +14,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import List, Optional
-
-from .plan_id import PlanId
-from .waypoint import Waypoint
-
-
-@dataclass
-class Plan:
-    waypoints: List[Waypoint] = field(default_factory=list)
-    start_time: Optional[datetime] = None
-    plan_id: Optional[PlanId] = None
-    workflow: str = ""
-    map_name: str = ""  # The map (LIF layoutId) this plan's waypoints belong to.

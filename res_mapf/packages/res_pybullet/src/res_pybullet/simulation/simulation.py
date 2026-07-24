@@ -28,7 +28,6 @@ Runs the PyBullet simulation.
 Robots are initialised and then continuously receive commands over the AgentCommand interface,
 responding on completion of each command.
 
-Provide a correct building.yaml to use named waypoints.
 
 This simulation.py and related urdf files were adapted initially from:
     https://github.com/omron-sinicx/PSIPP-CTC/tree/master/tools under the MIT License
@@ -40,16 +39,15 @@ import argparse
 import math
 import time
 from pathlib import Path
-from typing import Any, Optional, Dict, Sequence, Tuple
+from typing import Any, List, Dict, Optional, Sequence, Tuple
 
 import numpy
 import pybullet as p  # type: ignore
 import quaternion  # type: ignore
-import yaml
+from res_map.lif_parser import load_lif
 from res_pybullet.agent.agent import Agent, AgentCommandInterface, AgentState
 from res_pybullet.utils.pybullet_helpers import (
     check_escape_key,
-    draw_grid,
     set_camera_view,
 )
 
@@ -70,29 +68,17 @@ W_WHEEL_INCREMENT = MAX_W_WHEEL / (TIME_TO_ACCELERATE / dt)
 # -----------------------------
 
 
-def load_building(map_filepath: str) -> Optional[Dict[str, Sequence[float]]]:
+def load_map(map_filepath: str) -> Optional[Dict[str, List[float]]]:
+    print("DEBUG load_building called with:", map_filepath)
     try:
-        vertices: Dict[str, Sequence[float]] = {}
-        with open(map_filepath) as stream:
-            print(f"Loading map {map_filepath}")
-            try:
-                parsed_map = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(exc)
-                return None
-
-        if "warehouse" not in parsed_map["levels"]:
-            return vertices
-        if "vertices" not in parsed_map["levels"]["warehouse"]:
-            return vertices
-
-        for item in parsed_map["levels"]["warehouse"]["vertices"]:
-            x = float(item[0])
-            y = float(item[1])
-            vertice_name = item[3]
-            vertices[vertice_name] = [x, y]
+        map_data = load_lif(map_filepath)
+        vertices = {
+            node_id: [x, y] for node_id, (x, y) in map_data.world_positions.items()
+        }
+        print(f"Loaded LIF map {map_filepath} with {len(vertices)} nodes.")
         return vertices
-    except IOError:
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Failed to load LIF map {map_filepath}: {exc}")
         return None
 
 
@@ -127,8 +113,8 @@ def main() -> None:
         "--hide-labels", action="store_true", help="Disable debug text."
     )
     parser.add_argument(
-        "--building",
-        help="Path to building.yaml. A correct file must be provided if you want to use named waypoints.",
+        "--map",
+        help="Path to LIF JSON file. Required if you want to use named waypoints.",
     )
     parser.add_argument("--video", action="store_true", help="Records a video.")
 
@@ -151,10 +137,10 @@ def main() -> None:
             return p.addUserDebugText(*wrap_args, **wrap_kwargs)
 
     vertices = None
-    if args.building:
-        vertices = load_building(args.building)
+    if args.map:
+        vertices = load_map(args.map)
         if vertices:
-            print("Loaded building map")
+            print("Loaded map")
             x_max = max([vertices[key][0] for key in vertices])
             x_min = min([vertices[key][0] for key in vertices])
             y_max = max([vertices[key][1] for key in vertices])
@@ -167,8 +153,6 @@ def main() -> None:
     p.setGravity(0, 0, -9.81)
     p.setRealTimeSimulation(0)
 
-    # Initialise debug
-    # colors = plt.get_cmap(name="hsv", lut=number_of_agents + 1)
     # Initialise debug item IDs
     bullet_debug_items = {}
 
@@ -208,18 +192,22 @@ def main() -> None:
     time_end = time.time()
     print(f"Time taken to spawn agents: {time_end - time_start}")
 
-    # set_camera_view(p, num_agents=0, xmin=x_min, xmax=x_max, ymin=y_min, ymax=y_max)
+    # Set camera view at last loaded agent
     set_camera_view(p, camera_target_x, camera_target_y)
 
-    # Always draw the default grid
-    draw_grid(p, 0, 6, 0, 6, 1)  # TODO dynamic grid size and camera view
-
-    # Additionally, draw grid for the loaded building.
+    # Additionally, draw grid for the loaded map.
+    # This can take a long time if the map is large.
     if vertices:
-        draw_grid(
-            p, int(x_min), int(x_max), int(y_min), int(y_max), 10
-        )  # TODO dynamic grid size and camera view
-
+        for node_id, (nx, ny) in vertices.items():
+            # p.addUserDebugText(
+            #     node_id,
+            #     [nx, ny, 0.1]
+            # )
+            p.addUserDebugPoints(
+                [[nx, ny, 0.0]],
+                pointColorsRGB=[[0, 0, 1]],
+                pointSize=5,
+            )
     bullet_debug_items["timestamp"] = wrap_debug_text("", [0, 0, 0])
 
     for agent_name in simulation_agents:
