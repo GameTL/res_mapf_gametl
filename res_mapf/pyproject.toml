@@ -1,7 +1,7 @@
 [project]
 name = "res_mapf"
 version = "0.1.0"
-description = "Meta package for MAPF planning, execution, plan server, and PyBullet simulation."
+description = "Meta package for MAPF planning, execution, and PyBullet simulation."
 authors = [
     { name = "Tan Chian Fern", email = "tan_chian_fern@a-star.edu.sg" }
 ]

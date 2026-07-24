@@ -157,7 +157,7 @@ def render_graph(
     robots: Mapping[str, Any] | None = None,
     waiting: Iterable[str] = (),
 ) -> str:
-    """Return one terminal frame from flexible node, edge, and robot inputs."""
+    """Return one terminal frame from node, edge, and robot inputs."""
     graph_nodes = {_position(node) for node in nodes}
     graph_edges = [_edge(edge) for edge in edges]
     robot_positions = {

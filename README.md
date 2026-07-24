@@ -140,7 +140,7 @@ those from source with colcon as in [Getting Started](#getting-started).
 
 ## Usage
 
-### Docker example (AMQP + CBS)
+### Minimal example showing requests via AMQP
 
 Run a minimal planner that consumes AMQP `TaskRequest` messages, solves with CBS, and
 logs the plan to stdout (no VDA5050 / no publish back to the broker):

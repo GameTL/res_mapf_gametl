@@ -24,7 +24,7 @@ python publish_task.py --robot-id agent_0 --start 0,0 --goal 2,0
 python publish_task.py --robot-id agent_1 --task-id t2 --start 2,0 --goal 0,0
 ```
 
-Expect planner logs: AMQP connected → `TaskRequest` → CBS plan path on stdout.
+Expect planner logs: AMQP connected → `TaskRequest` → CBS plan -> ROS 2 Plan message displayed on stdout.
 
 RabbitMQ management UI: <http://localhost:15672> (`guest` / `guest`).
 
