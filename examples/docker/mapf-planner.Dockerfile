@@ -1,4 +1,4 @@
-# MAPF planner example — AMQP TaskRequest in, CBS plan on stdout.
+# MAPF planner example — AMQP consumer + HTTP server (CBS plans).
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 WORKDIR /app

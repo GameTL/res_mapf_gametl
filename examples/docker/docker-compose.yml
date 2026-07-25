@@ -21,10 +21,14 @@ services:
       dockerfile: examples/docker/mapf-planner.Dockerfile
     image: res-mapf/planner:local
     platform: linux/amd64
+    ports:
+      - "${PLANNER_HTTP_PORT:-8090}:8090"
     environment:
       AMQP_HOST: amqp-broker
       AMQP_PORT: "5672"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      PLANNER_HTTP_PORT: "8090"
+      MAP_ID: "default_map"
     depends_on:
       amqp-broker:
         condition: service_healthy

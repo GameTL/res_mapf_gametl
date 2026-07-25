@@ -153,7 +153,7 @@ docker compose up --build
 In another terminal:
 
 ```bash
-python examples/docker/publish_task.py
+python examples/docker/amqp_publish_task.py
 ```
 
 See [`examples/docker/README.md`](examples/docker/README.md) for message shape and options.
