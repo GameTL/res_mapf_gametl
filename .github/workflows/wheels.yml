@@ -75,6 +75,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install \
+            dist/res_map-*.whl \
             dist/res_mapf_planning-*.whl \
             dist/res_plan_execution-*.whl \
             dist/res_plan_server-*.whl \
@@ -83,7 +84,7 @@ jobs:
 
       - name: Import smoke
         run: |
-          python -c "import res_mapf_planning, res_plan_execution, res_plan_server, res_pybullet, res_mapf"
+          python -c "import res_map, res_mapf_planning, res_plan_execution, res_plan_server, res_pybullet, res_mapf"
 
   release:
     name: GitHub Release
